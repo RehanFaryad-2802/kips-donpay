@@ -1,0 +1,16 @@
+{
+  "name": "campus-fund-app",
+  "version": "1.0.0",
+  "description": "A real, working website — not a Claude artifact anymore. Two parts:",
+  "main": "index.js",
+  "scripts": {
+  "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
