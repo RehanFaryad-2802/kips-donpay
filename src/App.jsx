@@ -92,7 +92,7 @@ const loadDonorProfile = () => {
 };
 
 const paidDonationKey = (campaignId, profile) => {
-  const identity = [profile.name, profile.department, profile.programme]
+  const identity = [profile.name, profile.programme]
     .map((value) => (value || "").trim().toLowerCase())
     .join("|");
   return `campus-fund-paid:${campaignId}:${encodeURIComponent(identity)}`;
@@ -111,6 +111,26 @@ const markPaidDonation = (campaignId, profile) => {
     localStorage.setItem(paidDonationKey(campaignId, profile), "yes");
   } catch (error) {
     // The success state still works when browser storage is unavailable.
+  }
+};
+
+// A donor's own history of what they've sent, kept on their device only —
+// nothing to do with the shared donations list the admin sees.
+const MY_HISTORY_KEY = "campus-fund-my-history";
+const loadMyHistory = () => {
+  try {
+    return JSON.parse(localStorage.getItem(MY_HISTORY_KEY) || "[]");
+  } catch (error) {
+    return [];
+  }
+};
+const addToMyHistory = (entry) => {
+  try {
+    const history = loadMyHistory();
+    history.unshift(entry);
+    localStorage.setItem(MY_HISTORY_KEY, JSON.stringify(history));
+  } catch (error) {
+    // History is a convenience feature — safe to skip if storage is unavailable.
   }
 };
 
@@ -172,6 +192,7 @@ export default function CampusFund() {
   const [campaigns, setCampaigns] = useState(null);
   const [donations, setDonations] = useState(null);
   const [selected, setSelected] = useState(null); // campaign id
+  const [showHistory, setShowHistory] = useState(false);
   const [showNewCampaign, setShowNewCampaign] = useState(false);
   const [toast, setToast] = useState(null);
   const [loaded, setLoaded] = useState(false);
@@ -343,13 +364,21 @@ export default function CampusFund() {
         </div>
         <div style={styles.roleSwitch} className="cf-role-switch">
           {!adminPortal && role !== "admin" && (
-            <button
-              onClick={() => { setRole("donor"); setSelected(null); }}
-              style={{ ...styles.roleBtn, ...(role === "donor" ? styles.roleBtnActive : {}) }}
-            >
-              <Wallet size={15} style={{ marginRight: 6 }} />
-              Give
-            </button>
+            <>
+              <button
+                onClick={() => { setRole("donor"); setSelected(null); setShowHistory(false); }}
+                style={{ ...styles.roleBtn, ...(role === "donor" && !showHistory ? styles.roleBtnActive : {}) }}
+              >
+                <Wallet size={15} style={{ marginRight: 6 }} />
+                Give
+              </button>
+              <button
+                onClick={() => { setSelected(null); setShowHistory(true); }}
+                style={{ ...styles.roleBtn, ...(showHistory ? styles.roleBtnActive : {}) }}
+              >
+                My history
+              </button>
+            </>
           )}
           {(adminPortal || role === "admin") && (
             <button
@@ -397,11 +426,15 @@ export default function CampusFund() {
           </form>
         )}
 
-        {role === "donor" && !activeCampaign && (
+        {role === "donor" && showHistory && (
+          <MyHistory onBack={() => setShowHistory(false)} />
+        )}
+
+        {role === "donor" && !showHistory && !activeCampaign && (
           <DonorList campaigns={campaigns} raisedTotal={raisedTotal} onOpen={setSelected} />
         )}
 
-        {role === "donor" && activeCampaign && (
+        {role === "donor" && !showHistory && activeCampaign && (
           <DonorDetail
             campaign={activeCampaign}
             onBack={() => setSelected(null)}
@@ -483,7 +516,7 @@ function CampaignCard({ c, raised, onOpen, dim }) {
     <button onClick={onOpen} style={{ ...styles.card, ...(dim ? { opacity: 0.55 } : {}), borderTop: `3px solid ${theme.color}` }}>
       {cover && <img src={cover} alt="" style={styles.cardCover} />}
       <div style={{ ...styles.themeBadge, background: theme.soft, color: theme.color }}>
-        <span>{theme.emoji}</span>{theme.label}
+        <span>{theme.emoji}</span>{c.title}
       </div>
       <div style={styles.cardTitle}>{c.title}</div>
       <div style={styles.cardDesc}>{c.description}</div>
@@ -499,7 +532,7 @@ function CampaignCard({ c, raised, onOpen, dim }) {
   );
 }
 
-function ThemeIntroEffect({ theme, campaignId }) {
+function ThemeIntroEffect({ theme, title, campaignId }) {
   const [visible, setVisible] = useState(() => !hasSeenIntro(campaignId));
 
   useEffect(() => {
@@ -561,7 +594,7 @@ function ThemeIntroEffect({ theme, campaignId }) {
           />
         ))}
       </div>
-      <div style={styles.introTitle}>{theme.label}</div>
+      <div style={styles.introTitle}>{title}</div>
     </div>
   );
 }
@@ -570,7 +603,7 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
   const savedProfile = loadDonorProfile();
   const [form, setForm] = useState({
     name: savedProfile.name || "",
-    department: savedProfile.department || "",
+    accountName: savedProfile.accountName || "",
     programme: savedProfile.programme || "",
     amount: "",
     ref: "",
@@ -578,26 +611,32 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
   const [error, setError] = useState("");
   const [lightbox, setLightbox] = useState(null);
   const [sent, setSent] = useState(() => hasPaidDonation(campaign.id, savedProfile));
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     try {
       localStorage.setItem(DONOR_PROFILE_KEY, JSON.stringify({
         name: form.name,
-        department: form.department,
+        accountName: form.accountName,
         programme: form.programme,
       }));
     } catch (error) {
       // The form still works when browser storage is unavailable.
     }
-  }, [form.name, form.department, form.programme]);
+  }, [form.name, form.accountName, form.programme]);
 
   const schedule = formatSchedule(campaign.eventDate);
   const theme = getTheme(campaign.theme);
+  const accounts = campaign.accounts || {};
+  const accountTypes = Object.keys(accounts);
+  const [payVia, setPayVia] = useState(accountTypes[0] || "");
+  const activeAccount = accounts[payVia];
   const [copied, setCopied] = useState(false);
   const [screenshot, setScreenshot] = useState(null);
   const [screenshotError, setScreenshotError] = useState("");
   const copyAccountNumber = async () => {
-    const ok = await copyToClipboard(campaign.accountNumber);
+    if (!activeAccount) return;
+    const ok = await copyToClipboard(activeAccount.number);
     if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
@@ -619,8 +658,8 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.department.trim() || !form.programme.trim() || !form.amount) {
-      setError("Fill in your name, department, programme, and the amount.");
+    if (!form.name.trim() || !form.accountName.trim() || !form.programme.trim() || !form.amount) {
+      setError("Fill in your name, account name, programme, and the amount.");
       return;
     }
     if (Number(form.amount) <= 0) {
@@ -632,33 +671,44 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
       return;
     }
     setError("");
+    setSubmitting(true);
     try {
       await onSubmit({
         campaignId: campaign.id,
         donorName: form.name.trim(),
-        department: form.department.trim(),
+        accountName: form.accountName.trim(),
         programme: form.programme.trim(),
         amount: Number(form.amount),
         ref: form.ref.trim(),
         screenshot,
+        paidVia: payVia,
       });
       markPaidDonation(campaign.id, form);
+      addToMyHistory({
+        campaignId: campaign.id,
+        campaignTitle: campaign.title,
+        amount: Number(form.amount),
+        date: Date.now(),
+        paidVia: payVia,
+      });
       setForm((prev) => ({ ...prev, amount: "", ref: "" }));
       setScreenshot(null);
       setSent(true);
     } catch (e) {
       // onSubmit already showed a toast — keep the form filled in so nothing's lost.
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
     <div style={styles.narrow}>
-      <ThemeIntroEffect theme={theme} campaignId={campaign.id} />
+      <ThemeIntroEffect theme={theme} title={campaign.title} campaignId={campaign.id} />
       <button onClick={onBack} style={styles.backBtn}><ArrowLeft size={16} style={{ marginRight: 6 }} />All events</button>
 
       <h1 style={styles.h1} className="cf-h1">{campaign.title}</h1>
       <div style={{ ...styles.themeBadge, background: theme.soft, color: theme.color }}>
-        <span>{theme.emoji}</span>{theme.label}
+        <span>{theme.emoji}</span>{campaign.title}
       </div>
       {(schedule || campaign.venue) && (
         <div style={{ ...styles.detailSchedule, color: theme.color }}>
@@ -689,30 +739,51 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
         </div>
       )}
 
-      <div style={styles.payBox} className="cf-pay-box">
-        <img
-          src={campaign.paymentQrImage || qrUrl(`${campaign.accountType} ${campaign.accountNumber} ${campaign.accountTitle}`)}
-          alt="Payment QR code"
-          style={styles.qrImg}
-          className="cf-qr"
-        />
-        <div style={styles.payDetails}>
-          <div style={styles.payRow}><span style={styles.payLabel}>Send via</span><span>{campaign.accountType}</span></div>
-          <div style={styles.payRow}>
-            <span style={styles.payLabel}>Account no.</span>
-            <span style={styles.mono}>
-              {campaign.accountNumber}{" "}
-              <button type="button" onClick={copyAccountNumber} style={styles.copyBtn}>{copied ? "Copied" : "Copy"}</button>
-            </span>
-          </div>
-          <div style={styles.payRow}><span style={styles.payLabel}>Account title</span><span>{campaign.accountTitle}</span></div>
-          <div style={styles.hint}>
-            {campaign.paymentQrImage
-              ? "Scan this from your own payment app's \"Scan QR\" option — it fills in the recipient for you. On your own phone, it's usually faster to tap Copy and paste the number into your app's send-money screen."
-              : "Tap Copy and paste the number into your payment app's send-money screen. Ask the organiser to add a Scan & Pay QR for a faster option."}
+      {accountTypes.length === 0 ? (
+        <div style={styles.closedNotice}>No payment account has been set up for this event yet.</div>
+      ) : (
+        <div style={styles.payBox} className="cf-pay-box">
+          {accountTypes.length > 1 && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              {accountTypes.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setPayVia(type)}
+                  style={{
+                    ...styles.secondaryBtn,
+                    ...(type === payVia ? { borderColor: theme.color, color: theme.color } : {}),
+                  }}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          )}
+          <img
+            src={activeAccount.qrImage || qrUrl(`${payVia} ${activeAccount.number} ${activeAccount.title}`)}
+            alt="Payment QR code"
+            style={styles.qrImg}
+            className="cf-qr"
+          />
+          <div style={styles.payDetails}>
+            <div style={styles.payRow}><span style={styles.payLabel}>Send via</span><span>{payVia}</span></div>
+            <div style={styles.payRow}>
+              <span style={styles.payLabel}>Account no.</span>
+              <span style={styles.mono}>
+                {activeAccount.number}{" "}
+                <button type="button" onClick={copyAccountNumber} style={styles.copyBtn}>{copied ? "Copied" : "Copy"}</button>
+              </span>
+            </div>
+            <div style={styles.payRow}><span style={styles.payLabel}>Account title</span><span>{activeAccount.title}</span></div>
+            <div style={styles.hint}>
+              {activeAccount.qrImage
+                ? "Scan this from your own payment app's \"Scan QR\" option — it fills in the recipient for you. On your own phone, it's usually faster to tap Copy and paste the number into your app's send-money screen."
+                : "Tap Copy and paste the number into your payment app's send-money screen. Ask the organiser to add a Scan & Pay QR for a faster option."}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {campaign.closed ? (
         <div style={styles.closedNotice}>This event is closed and no longer accepting contributions.</div>
@@ -730,22 +801,22 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
         <form onSubmit={submit} style={styles.form}>
           <div style={styles.formRow2} className="cf-form-row2">
             <Field label="Your name">
-              <input style={styles.input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Ayesha Khan" />
+              <input style={styles.input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>
             <Field label="Amount sent">
-              <input style={styles.input} type="number" min="1" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="e.g. 500" />
+              <input style={styles.input} type="number" min="1" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
             </Field>
           </div>
           <div style={styles.formRow2} className="cf-form-row2">
-            <Field label="Department">
-              <input style={styles.input} value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="e.g. Computer Science" />
+            <Field label="Name on your payment account">
+              <input style={styles.input} value={form.accountName} onChange={(e) => setForm({ ...form, accountName: e.target.value })} />
             </Field>
             <Field label="Programme">
-              <input style={styles.input} value={form.programme} onChange={(e) => setForm({ ...form, programme: e.target.value })} placeholder="e.g. BS(CS) 2023" />
+              <input style={styles.input} value={form.programme} onChange={(e) => setForm({ ...form, programme: e.target.value })} />
             </Field>
           </div>
           <Field label="Transaction ID (optional, speeds up verification)">
-            <input style={styles.input} value={form.ref} onChange={(e) => setForm({ ...form, ref: e.target.value })} placeholder="e.g. TXN00123456" />
+            <input style={styles.input} value={form.ref} onChange={(e) => setForm({ ...form, ref: e.target.value })} />
           </Field>
           <Field label="Screenshot of your payment (required)">
             {screenshot ? (
@@ -762,7 +833,9 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
             {screenshotError && <div style={styles.error}>{screenshotError}</div>}
           </Field>
           {error && <div style={styles.error}>{error}</div>}
-          <button type="submit" style={styles.primaryBtn}>Log my contribution</button>
+          <button type="submit" style={styles.primaryBtn} disabled={submitting}>
+            {submitting ? "Sending…" : "Log my contribution"}
+          </button>
         </form>
       )}
     </div>
@@ -791,7 +864,11 @@ function AdminList({ campaigns, raisedTotal, onNew, onOpen, onSeed }) {
               <button key={c.id} onClick={() => onOpen(c.id)} style={{ ...styles.adminRow, borderLeft: `3px solid ${theme.color}` }} className="cf-admin-row">
                 <div>
                   <div style={styles.cardTitle}>{theme.emoji} {c.title}</div>
-                  <div style={styles.cardMeta}>{c.accountType} · {c.accountNumber}</div>
+                  <div style={styles.cardMeta}>
+                    {Object.keys(c.accounts || {}).length > 0
+                      ? Object.keys(c.accounts).join(", ")
+                      : "No account added"}
+                  </div>
                 </div>
                 <div style={styles.adminRowRight} className="cf-admin-row-right">
                   <div style={styles.donorAmount}>{currency(raisedTotal(c.id))}</div>
@@ -806,17 +883,101 @@ function AdminList({ campaigns, raisedTotal, onNew, onOpen, onSeed }) {
   );
 }
 
+// Lets an organiser add receiving-account details for any/all of the four
+// payment methods, each with its own number, title, and Scan & Pay QR.
+// `accounts` is a map like { JazzCash: { number, title, qrImage }, ... }.
+function AccountsEditor({ accounts, onChange }) {
+  const [qrErrors, setQrErrors] = useState({});
+
+  const setAccount = (type, patch) => {
+    onChange({ ...accounts, [type]: { ...(accounts[type] || { number: "", title: "", qrImage: null }), ...patch } });
+  };
+
+  const removeAccount = (type) => {
+    const next = { ...accounts };
+    delete next[type];
+    onChange(next);
+  };
+
+  const handleQrFile = async (type, e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      // Higher quality / larger size than event photos — a blurry QR won't scan.
+      const dataUrl = await fileToCompressedDataUrl(file, 500, 0.92);
+      setQrErrors((prev) => ({ ...prev, [type]: "" }));
+      setAccount(type, { qrImage: dataUrl });
+    } catch (err) {
+      setQrErrors((prev) => ({ ...prev, [type]: "Couldn't read that image — try a different file." }));
+    }
+  };
+
+  return (
+    <div>
+      {ACCOUNT_TYPES.map((type) => {
+        const acc = accounts[type];
+        if (!acc) {
+          return (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setAccount(type, {})}
+              style={{ ...styles.secondaryBtn, marginRight: 8, marginBottom: 8 }}
+            >
+              + Add {type}
+            </button>
+          );
+        }
+        return (
+          <div key={type} style={{ ...styles.scheduleBox, flexDirection: "column", alignItems: "stretch", marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={styles.donorName}>{type}</div>
+              <button type="button" onClick={() => removeAccount(type)} style={styles.copyBtn}>Remove</button>
+            </div>
+            <div style={styles.formRow2} className="cf-form-row2">
+              <Field label="Account number">
+                <input style={styles.input} value={acc.number} onChange={(e) => setAccount(type, { number: e.target.value })} />
+              </Field>
+              <Field label="Account title">
+                <input style={styles.input} value={acc.title} onChange={(e) => setAccount(type, { title: e.target.value })} />
+              </Field>
+            </div>
+            <Field label="Scan & Pay QR (optional, but makes scanning actually work)">
+              {acc.qrImage ? (
+                <div style={styles.galleryThumbWrap}>
+                  <img src={acc.qrImage} alt="" style={styles.galleryThumb} />
+                  <button type="button" onClick={() => setAccount(type, { qrImage: null })} style={styles.removeImgBtn}>×</button>
+                </div>
+              ) : (
+                <label style={styles.uploadTile}>
+                  + Add QR
+                  <input type="file" accept="image/*" onChange={(e) => handleQrFile(type, e)} style={{ display: "none" }} />
+                </label>
+              )}
+              {qrErrors[type] && <div style={styles.error}>{qrErrors[type]}</div>}
+            </Field>
+          </div>
+        );
+      })}
+      <div style={styles.hint}>
+        Add as many payment methods as you accept — donors will pick whichever they used.
+      </div>
+    </div>
+  );
+}
+
 function NewCampaignForm({ onCancel, onCreate }) {
   const [form, setForm] = useState({
     title: "", description: "", goal: "",
-    accountType: ACCOUNT_TYPES[0], accountNumber: "", accountTitle: "",
     venue: "", eventDate: "",
   });
   const [themeId, setThemeId] = useState("general");
   const [themeTouched, setThemeTouched] = useState(false);
   const [images, setImages] = useState([]);
-  const [paymentQrImage, setPaymentQrImage] = useState(null);
+  const [accounts, setAccounts] = useState({});
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleTitleChange = (title) => {
     setForm((prev) => ({ ...prev, title }));
@@ -849,25 +1010,26 @@ function NewCampaignForm({ onCancel, onCreate }) {
 
   const removeImage = (id) => setImages((prev) => prev.filter((img) => img.id !== id));
 
-  const handleQrFile = async (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (!file) return;
-    try {
-      // Higher quality / larger size than event photos — a blurry QR won't scan.
-      setPaymentQrImage(await fileToCompressedDataUrl(file, 500, 0.92));
-    } catch (err) {
-      setError("Couldn't read that QR image — try a different file.");
-    }
-  };
-
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.accountNumber.trim() || !form.accountTitle.trim()) {
-      setError("Event title, account number, and account title are required.");
+    if (!form.title.trim()) {
+      setError("Event title is required.");
       return;
     }
-    onCreate({ ...form, goal: Number(form.goal) || 0, images, paymentQrImage, theme: themeId });
+    const validAccounts = Object.fromEntries(
+      Object.entries(accounts).filter(([, acc]) => acc.number.trim() && acc.title.trim())
+    );
+    if (Object.keys(validAccounts).length === 0) {
+      setError("Add at least one receiving account with a number and title.");
+      return;
+    }
+    setError("");
+    setSubmitting(true);
+    try {
+      await onCreate({ ...form, goal: Number(form.goal) || 0, images, accounts: validAccounts, theme: themeId });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -876,7 +1038,7 @@ function NewCampaignForm({ onCancel, onCreate }) {
       <h1 style={styles.h1} className="cf-h1">New event</h1>
       <form onSubmit={submit} style={styles.form}>
         <Field label="Event title">
-          <input style={styles.input} value={form.title} onChange={(e) => handleTitleChange(e.target.value)} placeholder="e.g. Spring Convocation Fund" />
+          <input style={styles.input} value={form.title} onChange={(e) => handleTitleChange(e.target.value)} />
         </Field>
         <Field label="Description">
           <textarea style={{ ...styles.input, minHeight: 70, resize: "vertical" }} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What the money is for" />
@@ -906,47 +1068,19 @@ function NewCampaignForm({ onCancel, onCreate }) {
         </div>
 
         <Field label="Goal amount (optional)">
-          <input style={styles.input} type="number" min="0" value={form.goal} onChange={(e) => setForm({ ...form, goal: e.target.value })} placeholder="e.g. 50000" />
+          <input style={styles.input} type="number" min="0" value={form.goal} onChange={(e) => setForm({ ...form, goal: e.target.value })} />
         </Field>
 
         <div style={styles.sectionDivider}>Schedule & venue</div>
         <Field label="Venue / location">
-          <input style={styles.input} value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} placeholder="e.g. Main Auditorium" />
+          <input style={styles.input} value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} />
         </Field>
         <Field label="Event date (when will the event happen)">
           <input style={styles.input} type="datetime-local" value={form.eventDate} onChange={(e) => setForm({ ...form, eventDate: e.target.value })} />
         </Field>
 
-        <div style={styles.sectionDivider}>Receiving account</div>
-        <div style={styles.formRow2} className="cf-form-row2">
-          <Field label="Payment method">
-            <select style={styles.input} value={form.accountType} onChange={(e) => setForm({ ...form, accountType: e.target.value })}>
-              {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </Field>
-          <Field label="Account number">
-            <input style={styles.input} value={form.accountNumber} onChange={(e) => setForm({ ...form, accountNumber: e.target.value })} placeholder="e.g. 0300-1234567" />
-          </Field>
-        </div>
-        <Field label="Account title">
-          <input style={styles.input} value={form.accountTitle} onChange={(e) => setForm({ ...form, accountTitle: e.target.value })} placeholder="e.g. Bilal Ahmed" />
-        </Field>
-        <Field label="Scan & Pay QR (optional, but makes scanning actually work)">
-          {paymentQrImage ? (
-            <div style={styles.galleryThumbWrap}>
-              <img src={paymentQrImage} alt="" style={styles.galleryThumb} />
-              <button type="button" onClick={() => setPaymentQrImage(null)} style={styles.removeImgBtn}>×</button>
-            </div>
-          ) : (
-            <label style={styles.uploadTile}>
-              + Add QR
-              <input type="file" accept="image/*" onChange={handleQrFile} style={{ display: "none" }} />
-            </label>
-          )}
-          <div style={styles.hint}>
-            From the receiving account's own app: JazzCash / Easypaisa / bank app → "Receive Money" or "My QR" → screenshot it.
-          </div>
-        </Field>
+        <div style={styles.sectionDivider}>Receiving accounts</div>
+        <AccountsEditor accounts={accounts} onChange={setAccounts} />
 
         <div style={styles.sectionDivider}>Event photos (optional)</div>
         <div style={styles.gallery} className="cf-gallery">
@@ -965,7 +1099,9 @@ function NewCampaignForm({ onCancel, onCreate }) {
         </div>
 
         {error && <div style={styles.error}>{error}</div>}
-        <button type="submit" style={styles.primaryBtn}><QrCode size={16} style={{ marginRight: 6 }} />Create & generate QR</button>
+        <button type="submit" style={styles.primaryBtn} disabled={submitting}>
+          <QrCode size={16} style={{ marginRight: 6 }} />{submitting ? "Creating…" : "Create & generate QR"}
+        </button>
       </form>
     </div>
   );
@@ -1005,21 +1141,17 @@ function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onU
 
   const removeImage = (id) => onUpdateCampaign({ images: images.filter((img) => img.id !== id) });
 
-  const [qrError, setQrError] = useState("");
-  const handleQrFile = async (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (!file) return;
-    try {
-      // Higher quality / larger size than event photos — a blurry QR won't scan.
-      const dataUrl = await fileToCompressedDataUrl(file, 500, 0.92);
-      setQrError("");
-      onUpdateCampaign({ paymentQrImage: dataUrl });
-      flash && flash("Payment QR updated");
-    } catch (err) {
-      setQrError("Couldn't read that image — try a different file.");
-    }
-  };
+  const [search, setSearch] = useState("");
+  const filteredDonations = search.trim()
+    ? donations.filter((d) => {
+        const q = search.trim().toLowerCase();
+        return (
+          (d.programme || "").toLowerCase().includes(q) ||
+          (d.donorName || "").toLowerCase().includes(q) ||
+          (d.accountName || "").toLowerCase().includes(q)
+        );
+      })
+    : donations;
 
   const startEditSchedule = () => {
     setScheduleForm({ venue: campaign.venue || "", eventDate: campaign.eventDate || "" });
@@ -1082,7 +1214,7 @@ function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onU
             })}
           </div>
           <Field label="Venue / location">
-            <input style={styles.input} value={scheduleForm.venue} onChange={(e) => setScheduleForm({ ...scheduleForm, venue: e.target.value })} placeholder="e.g. Main Auditorium" />
+            <input style={styles.input} value={scheduleForm.venue} onChange={(e) => setScheduleForm({ ...scheduleForm, venue: e.target.value })} />
           </Field>
           <Field label="Event date (when will the event happen)">
             <input style={styles.input} type="datetime-local" value={scheduleForm.eventDate} onChange={(e) => setScheduleForm({ ...scheduleForm, eventDate: e.target.value })} />
@@ -1128,36 +1260,32 @@ function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onU
         </div>
       )}
 
-      <div style={styles.payBox} className="cf-pay-box">
-        <img
-          src={campaign.paymentQrImage || qrUrl(`${campaign.accountType} ${campaign.accountNumber} ${campaign.accountTitle}`)}
-          alt="Payment QR code"
-          style={styles.qrImg}
-          className="cf-qr"
-        />
-        <div style={styles.payDetails}>
-          <div style={styles.payRow}><span style={styles.payLabel}>Receiving</span><span>{campaign.accountType} · {campaign.accountNumber}</span></div>
-          <div style={styles.payRow}><span style={styles.payLabel}>Title</span><span>{campaign.accountTitle}</span></div>
-          <div style={styles.payRow}><span style={styles.payLabel}>Total received</span><span style={styles.donorAmount}>{currency(total)}</span></div>
-        </div>
-      </div>
-      <label style={{ ...styles.secondaryBtn, display: "inline-block", cursor: "pointer", marginTop: -14, marginBottom: 20 }}>
-        {campaign.paymentQrImage ? "Replace Scan & Pay QR" : "Upload Scan & Pay QR"}
-        <input type="file" accept="image/*" onChange={handleQrFile} style={{ display: "none" }} />
-      </label>
-      {qrError && <div style={styles.error}>{qrError}</div>}
-      <div style={styles.hint}>
-        Get this from the receiving account's own app — JazzCash / Easypaisa / bank app → "Receive Money" or "My QR" → screenshot it. That's what makes scanning actually work for donors.
-      </div>
+      <div style={styles.sectionDivider}>Receiving accounts · Total received {currency(total)}</div>
+      <AccountsEditor
+        accounts={campaign.accounts || {}}
+        onChange={(accounts) => { onUpdateCampaign({ accounts }); flash && flash("Payment accounts updated"); }}
+      />
 
-      <div style={styles.sectionDivider}>Who's sent ({donations.length})</div>
-      {donations.length === 0 ? <EmptyState text="No contributions logged yet." small /> : (
+      <div style={styles.sectionDivider}>Who's sent ({filteredDonations.length}{search.trim() ? ` of ${donations.length}` : ""})</div>
+      <input
+        style={{ ...styles.input, marginBottom: 12 }}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Filter by name or programme — e.g. CS, AI, IT"
+      />
+      {donations.length === 0 ? <EmptyState text="No contributions logged yet." small /> : filteredDonations.length === 0 ? (
+        <EmptyState text="No donations match that filter." small />
+      ) : (
         <ul style={styles.donorList}>
-          {donations.map((d) => (
+          {filteredDonations.map((d) => (
             <li key={d.id} style={styles.adminDonationRow}>
               <div>
                 <div style={styles.donorName}>{d.donorName}</div>
-                <div style={styles.donorDept}>{d.department} · {d.programme}{d.ref ? ` · Ref: ${d.ref}` : ""}</div>
+                <div style={styles.donorDept}>
+                  {d.programme}{d.paidVia ? ` · via ${d.paidVia}` : ""}
+                  {d.accountName && d.accountName !== d.donorName ? ` · Sent from: ${d.accountName}` : ""}
+                  {d.ref ? ` · Ref: ${d.ref}` : ""}
+                </div>
                 {d.screenshot && (
                   <button type="button" onClick={() => setLightbox(d.screenshot)} style={{ ...styles.copyBtn, marginTop: 6, marginLeft: 0 }}>
                     View screenshot
@@ -1165,6 +1293,35 @@ function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onU
                 )}
               </div>
               <div style={styles.donorAmount}>{currency(d.amount)}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function MyHistory({ onBack }) {
+  const history = loadMyHistory();
+  return (
+    <div style={styles.narrow}>
+      <button onClick={onBack} style={styles.backBtn}><ArrowLeft size={16} style={{ marginRight: 6 }} />All events</button>
+      <h1 style={styles.h1} className="cf-h1">My contribution history</h1>
+      <p style={styles.lead}>Saved on this device only — nobody else can see this list.</p>
+      {history.length === 0 ? (
+        <EmptyState text="You haven't logged any contributions on this device yet." />
+      ) : (
+        <ul style={styles.donorList}>
+          {history.map((h, i) => (
+            <li key={i} style={styles.adminDonationRow}>
+              <div>
+                <div style={styles.donorName}>{h.campaignTitle}</div>
+                <div style={styles.donorDept}>
+                  {new Date(h.date).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
+                  {h.paidVia ? ` · via ${h.paidVia}` : ""}
+                </div>
+              </div>
+              <div style={styles.donorAmount}>{currency(h.amount)}</div>
             </li>
           ))}
         </ul>

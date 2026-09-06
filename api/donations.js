@@ -11,8 +11,8 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const { campaignId, donorName, department, programme, amount } = req.body || {};
-    if (!campaignId || !donorName || !department || !programme || !amount) {
+    const { campaignId, donorName, accountName, programme, amount } = req.body || {};
+    if (!campaignId || !donorName || !accountName || !programme || !amount) {
       return res.status(400).json({ error: "Missing required fields" });
     }
     const db = await readDB();
