@@ -1,16 +1,22 @@
 {
-  "name": "campus-fund-app",
+  "name": "campus-fund",
+  "private": true,
   "version": "1.0.0",
-  "description": "A real, working website — not a Claude artifact anymore. Two parts:",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
-  "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\""
+    "dev": "vercel dev",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "lucide-react": "^0.383.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "@vitejs/plugin-react": "^4.3.1",
+    "vercel": "^37.4.0",
+    "vite": "^5.4.0"
   }
 }
