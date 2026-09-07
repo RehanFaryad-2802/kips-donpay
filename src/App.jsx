@@ -379,12 +379,17 @@ export default function CampusFund() {
   return (
     <div style={{ ...styles.page, ...pageThemeStyles }} className="cf-page">
       <style>{fontFace}</style>
+      <div className="cf-grain" />
       <header style={styles.header} className="cf-header">
         <div style={styles.brand}>
-          <div style={styles.brandMark}>CF</div>
+          <svg width="38" height="38" viewBox="0 0 40 40" style={styles.brandMark}>
+            <circle cx="20" cy="20" r="18.5" fill="none" stroke="var(--accent)" strokeWidth="1.4" />
+            <circle cx="20" cy="20" r="14" fill="var(--accent)" opacity="0.14" />
+            <path d="M13 21.5 L17.5 26 L27.5 15" fill="none" stroke="var(--accent)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           <div>
-            <div style={styles.brandTitle}>Campus Fund</div>
-            <div style={styles.brandSub} className="cf-brand-sub">Event contributions, logged openly</div>
+            <div style={styles.brandTitle}>DonPay</div>
+            <div style={styles.brandSub} className="cf-brand-sub">Every contribution, sealed and logged</div>
           </div>
         </div>
         <div style={styles.roleSwitch} className="cf-role-switch">
@@ -539,11 +544,18 @@ function CampaignCard({ c, raised, onOpen, dim }) {
   const schedule = formatSchedule(c.eventDate);
   const theme = getTheme(c.theme);
   return (
-    <button onClick={onOpen} style={{ ...styles.card, ...(dim ? { opacity: 0.55 } : {}), borderTop: `3px solid ${theme.color}` }}>
-      {cover && <img src={cover} alt="" style={styles.cardCover} />}
-      <div style={{ ...styles.themeBadge, background: theme.soft, color: theme.color }}>
-        <span>{theme.emoji}</span>{c.title}
+    <button onClick={onOpen} style={{ ...styles.card, ...(dim ? { opacity: 0.55 } : {}) }} className="cf-ticket-card">
+      <div style={styles.cardTop}>
+        {cover ? (
+          <img src={cover} alt="" style={styles.cardCover} />
+        ) : (
+          <div style={{ ...styles.cardCoverBlank, background: theme.soft }}>{theme.emoji}</div>
+        )}
+        <div className="cf-stamp" style={{ ...styles.cardStamp, color: theme.color, background: "var(--surface)" }}>
+          {theme.emoji}
+        </div>
       </div>
+      <div className="cf-ticket-perf" />
       <div style={styles.cardTitle}>{c.title}</div>
       <div style={styles.cardDesc}>{c.description}</div>
       {(schedule || c.venue) && (
@@ -734,9 +746,9 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
       <ThemeIntroEffect theme={theme} title={campaign.title} campaignId={campaign.id} />
       <button onClick={onBack} style={styles.backBtn}><ArrowLeft size={16} style={{ marginRight: 6 }} />All events</button>
 
-      <h1 style={styles.h1} className="cf-h1">{campaign.title}</h1>
-      <div style={{ ...styles.themeBadge, background: theme.soft, color: theme.color }}>
-        <span>{theme.emoji}</span>{campaign.title}
+      <div style={styles.detailHeaderRow}>
+        <div className="cf-stamp" style={{ color: theme.color, background: "var(--surface)" }}>{theme.emoji}</div>
+        <h1 style={{ ...styles.h1, margin: 0 }} className="cf-h1">{campaign.title}</h1>
       </div>
       {(schedule || campaign.venue) && (
         <div style={{ ...styles.detailSchedule, color: theme.color }}>
@@ -1253,13 +1265,14 @@ function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onU
           </div>
         </form>
       ) : (
-        <div style={styles.scheduleBox}>
-          <div>
-            <div style={{ ...styles.themeBadge, background: theme.soft, color: theme.color, marginBottom: 8 }}>
-              <span>{theme.emoji}</span>{theme.label}
+        <div style={{ ...styles.scheduleBox, alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="cf-stamp" style={{ color: theme.color, background: "var(--page-bg)", flexShrink: 0 }}>{theme.emoji}</div>
+            <div>
+              <div style={{ ...styles.donorName, marginBottom: 2 }}>{theme.label}</div>
+              {schedule && <div style={styles.donorDept}>{schedule}</div>}
+              <div style={styles.donorDept}>{campaign.venue || "No venue set"}</div>
             </div>
-            {schedule && <div style={styles.donorName}>{schedule}</div>}
-            <div style={styles.donorDept}>{campaign.venue || "No venue set"}</div>
           </div>
           <button onClick={startEditSchedule} style={styles.secondaryBtn}>Edit</button>
         </div>
@@ -1431,17 +1444,55 @@ function EmptyState({ text, small }) {
 }
 
 const fontFace = `
-  @import url('https://fonts.cdnfonts.com/css/lora');
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,440;9..144,560;9..144,650&family=Inter:wght@400;500;600;700&display=swap');
 
   html, body, #root { min-height: 100%; background: var(--page-bg, #101820); }
   html, body { overflow-x: hidden; margin: 0; }
-  .cf-page { overflow-x: hidden; width: 100%; min-height: 100vh; box-sizing: border-box; }
-  .cf-header { flex-wrap: wrap; gap: 12px; }
+  .cf-page { overflow-x: hidden; width: 100%; min-height: 100vh; box-sizing: border-box; position: relative; }
+  .cf-grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.05;
+    background-image: radial-gradient(circle at 1px 1px, #fff 1px, transparent 0);
+    background-size: 3px 3px;
+  }
+  .cf-main { position: relative; z-index: 1; }
+  .cf-header { flex-wrap: wrap; gap: 12px; position: relative; z-index: 1; }
   .cf-form-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .cf-pay-box { display: flex; gap: 20px; align-items: center; }
   .cf-admin-row { flex-wrap: wrap; gap: 10px; }
   .cf-admin-row-right { flex-wrap: wrap; }
   .cf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+
+  /* Ticket-stub motif: a torn-perforation divider between an event card's
+     visual band and its details, echoing a real event/donation stub. */
+  .cf-ticket-card {
+    transition: transform 0.18s ease, border-color 0.18s ease;
+  }
+  .cf-ticket-card:hover { transform: translateY(-3px); }
+  .cf-ticket-perf {
+    position: relative; height: 0; margin: 14px -18px 14px;
+    border-top: 1.5px dashed var(--border);
+  }
+  .cf-ticket-perf::before, .cf-ticket-perf::after {
+    content: ""; position: absolute; top: -7px; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--page-bg);
+  }
+  .cf-ticket-perf::before { left: -7px; }
+  .cf-ticket-perf::after { right: -7px; }
+
+  /* Wax-seal stamp: stands in for the theme's identity mark, in place of a
+     flat SaaS-style color pill. */
+  .cf-stamp {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+    border: 1.5px dashed currentColor; transform: rotate(-8deg);
+    font-size: 18px; position: relative;
+  }
+  .cf-stamp::after {
+    content: ""; position: absolute; inset: 4px; border-radius: 50%;
+    border: 1px solid currentColor; opacity: 0.45;
+  }
+  .cf-stamp-lg { width: 56px; height: 56px; font-size: 24px; }
+
   .cf-theme-intro { animation: cf-intro-fade 2.2s ease forwards; }
   .cf-intro-motif { animation: cf-intro-float 1.8s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--intro-index) * 70ms); }
   @keyframes cf-intro-fade {
@@ -1519,7 +1570,7 @@ const fontFace = `
 
 const styles = {
   page: {
-    fontFamily: "'Lora', Georgia, 'Times New Roman', serif",
+    fontFamily: "'Inter', system-ui, sans-serif",
     background: "var(--page-bg)",
     color: "var(--text)",
     minHeight: "100vh",
@@ -1532,73 +1583,76 @@ const styles = {
     padding: "20px 28px", borderBottom: "1px solid var(--border)",
   },
   brand: { display: "flex", alignItems: "center", gap: 12 },
-  brandMark: {
-    width: 36, height: 36, borderRadius: 8, background: "var(--accent)", color: "#101820",
-    display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14,
-    fontFamily: "Georgia, serif",
-  },
-  brandTitle: { fontSize: 17, fontWeight: 600, letterSpacing: 0.2, color: "var(--text)" },
-  brandSub: { fontSize: 11.5, color: "var(--muted)", fontFamily: "system-ui, sans-serif", marginTop: 1 },
+  brandMark: { flexShrink: 0 },
+  brandTitle: { fontSize: 19, fontWeight: 600, letterSpacing: 0.2, color: "var(--text)", fontFamily: "'Fraunces', Georgia, serif" },
+  brandSub: { fontSize: 11.5, color: "var(--muted)", fontFamily: "'Inter', system-ui, sans-serif", marginTop: 1 },
   roleSwitch: { display: "flex", gap: 4, background: "var(--surface)", padding: 4, borderRadius: 10 },
   roleBtn: {
     display: "flex", alignItems: "center", padding: "7px 14px", borderRadius: 7, border: "none",
     background: "transparent", color: "var(--muted)", fontSize: 13, cursor: "pointer",
-    fontFamily: "system-ui, sans-serif", fontWeight: 500,
+    fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 500,
   },
   roleBtnActive: { background: "var(--accent-soft)", color: "var(--accent)" },
   main: { maxWidth: 920, margin: "0 auto", padding: "36px 28px 0" },
-  h1: { fontSize: 26, fontWeight: 600, margin: "0 0 8px", letterSpacing: 0.1 },
-  lead: { fontSize: 14.5, color: "var(--muted)", fontFamily: "system-ui, sans-serif", lineHeight: 1.6, margin: "0 0 24px", maxWidth: 560 },
-  detailSchedule: { fontSize: 12.5, color: "var(--accent)", fontFamily: "system-ui, sans-serif", marginBottom: 8, fontWeight: 600 },
+  h1: { fontSize: 27, fontWeight: 600, margin: "0 0 8px", letterSpacing: 0.1, fontFamily: "'Fraunces', Georgia, serif" },
+  detailHeaderRow: { display: "flex", alignItems: "center", gap: 14, marginBottom: 8 },
+  lead: { fontSize: 14.5, color: "var(--muted)", fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1.6, margin: "0 0 24px", maxWidth: 560 },
+  detailSchedule: { fontSize: 12.5, color: "var(--accent)", fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8, fontWeight: 600 },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 },
   card: {
-    textAlign: "left", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
-    padding: "18px 18px 16px", cursor: "pointer", color: "var(--text)", position: "relative",
-    fontFamily: "inherit", transition: "border-color 0.15s ease",
+    textAlign: "left", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14,
+    padding: "16px 18px 18px", cursor: "pointer", color: "var(--text)", position: "relative",
+    fontFamily: "inherit", boxShadow: "0 1px 0 rgba(0,0,0,0.15)",
   },
-  cardCover: { width: "100%", height: 110, objectFit: "cover", borderRadius: 8, marginBottom: 12, display: "block", background: "var(--page-bg)" },
-  cardTitle: { fontSize: 16, fontWeight: 600, marginBottom: 6 },
-  cardDesc: { fontSize: 12.5, color: "var(--muted)", fontFamily: "system-ui, sans-serif", lineHeight: 1.5, marginBottom: 14, minHeight: 32 },
-  cardSchedule: { fontSize: 11.5, color: "var(--accent)", fontFamily: "system-ui, sans-serif", marginBottom: 8 },
-  cardMeta: { fontSize: 12.5, fontFamily: "system-ui, sans-serif", color: "var(--accent)", fontWeight: 600 },
+  cardTop: { position: "relative", marginBottom: 2 },
+  cardCover: { width: "100%", height: 112, objectFit: "cover", borderRadius: 9, display: "block", background: "var(--page-bg)" },
+  cardCoverBlank: {
+    width: "100%", height: 112, borderRadius: 9, display: "flex", alignItems: "center",
+    justifyContent: "center", fontSize: 40, opacity: 0.4,
+  },
+  cardStamp: { position: "absolute", top: -12, right: 10, boxShadow: "0 3px 8px rgba(0,0,0,0.35)" },
+  cardTitle: { fontSize: 17, fontWeight: 600, marginBottom: 6, fontFamily: "'Fraunces', Georgia, serif" },
+  cardDesc: { fontSize: 12.5, color: "var(--muted)", fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1.5, marginBottom: 14, minHeight: 32 },
+  cardSchedule: { fontSize: 11.5, color: "var(--accent)", fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8 },
+  cardMeta: { fontSize: 12.5, fontFamily: "'Inter', system-ui, sans-serif", color: "var(--accent)", fontWeight: 600 },
   closedTag: {
     position: "absolute", top: 14, right: 14, fontSize: 10.5, color: "var(--muted)",
-    border: "1px solid var(--border)", borderRadius: 5, padding: "2px 7px", fontFamily: "system-ui, sans-serif",
+    border: "1px solid var(--border)", borderRadius: 5, padding: "2px 7px", fontFamily: "'Inter', system-ui, sans-serif",
   },
   sectionDivider: {
     fontSize: 11.5, textTransform: "uppercase", letterSpacing: 1, color: "var(--muted)",
-    fontFamily: "system-ui, sans-serif", margin: "28px 0 12px", fontWeight: 600,
+    fontFamily: "'Inter', system-ui, sans-serif", margin: "28px 0 12px", fontWeight: 600,
   },
   backBtn: {
     display: "flex", alignItems: "center", background: "none", border: "none", color: "var(--muted)",
-    fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 18, fontFamily: "system-ui, sans-serif",
+    fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 18, fontFamily: "'Inter', system-ui, sans-serif",
   },
   payBox: {
     display: "flex", gap: 20, background: "var(--surface)", border: "1px solid var(--border)",
-    borderRadius: 14, padding: 20, marginBottom: 24, alignItems: "center",
+    borderTop: "3px dashed var(--accent)", borderRadius: 14, padding: 20, marginBottom: 24, alignItems: "center",
   },
   qrImg: { width: 130, height: 130, borderRadius: 8, background: "#fff", padding: 6, flexShrink: 0 },
   payDetails: { flex: 1, minWidth: 0 },
   payRow: {
-    display: "flex", justifyContent: "space-between", fontSize: 13.5, fontFamily: "system-ui, sans-serif",
+    display: "flex", justifyContent: "space-between", fontSize: 13.5, fontFamily: "'Inter', system-ui, sans-serif",
     padding: "5px 0", borderBottom: "1px solid var(--border)",
   },
   payLabel: { color: "var(--muted)" },
   mono: { fontFamily: "'Courier New', monospace" },
   copyBtn: {
-    fontFamily: "system-ui, sans-serif", fontSize: 11, background: "var(--accent-soft)", color: "var(--accent)",
+    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 11, background: "var(--accent-soft)", color: "var(--accent)",
     border: "none", borderRadius: 5, padding: "3px 8px", cursor: "pointer", marginLeft: 4,
   },
-  hint: { fontSize: 11.5, color: "#6B7480", fontFamily: "system-ui, sans-serif", lineHeight: 1.5, marginTop: 10 },
+  hint: { fontSize: 11.5, color: "#6B7480", fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1.5, marginTop: 10 },
   themeGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 20 },
   themeSwatch: {
     display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "10px 6px",
     borderRadius: 10, border: "1px solid var(--border)", cursor: "pointer", fontSize: 11,
-    fontFamily: "system-ui, sans-serif", textAlign: "center", lineHeight: 1.3,
+    fontFamily: "'Inter', system-ui, sans-serif", textAlign: "center", lineHeight: 1.3,
   },
   themeBadge: {
     display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600,
-    padding: "4px 10px", borderRadius: 20, fontFamily: "system-ui, sans-serif", marginBottom: 10,
+    padding: "4px 10px", borderRadius: 20, fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 10,
   },
   gallery: { display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, marginBottom: 20 },
   galleryThumbWrap: { position: "relative", flexShrink: 0 },
@@ -1606,12 +1660,12 @@ const styles = {
   removeImgBtn: {
     position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%",
     background: "#E08A8A", color: "#101820", border: "none", fontSize: 12, lineHeight: "20px",
-    cursor: "pointer", fontFamily: "system-ui, sans-serif", fontWeight: 700, padding: 0,
+    cursor: "pointer", fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, padding: 0,
   },
   uploadTile: {
     width: 120, height: 88, borderRadius: 8, border: "1px dashed var(--border)", flexShrink: 0,
     display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)",
-    fontSize: 11.5, fontFamily: "system-ui, sans-serif", cursor: "pointer", textAlign: "center",
+    fontSize: 11.5, fontFamily: "'Inter', system-ui, sans-serif", cursor: "pointer", textAlign: "center",
     padding: 6, background: "var(--surface)",
   },
   lightboxOverlay: {
@@ -1632,38 +1686,39 @@ const styles = {
     position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 26,
   },
   introTitle: {
-    position: "relative", color: "var(--intro-color)", fontSize: 23, fontWeight: 700,
-    textShadow: "0 2px 18px rgba(0,0,0,.8)", textAlign: "center",
+    position: "relative", color: "var(--intro-color)", fontSize: 24, fontWeight: 600,
+    textShadow: "0 2px 18px rgba(0,0,0,.8)", textAlign: "center", fontFamily: "'Fraunces', Georgia, serif",
   },
   form: { display: "flex", flexDirection: "column", gap: 14 },
   formRow2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 },
   field: { display: "flex", flexDirection: "column", gap: 6 },
-  fieldLabel: { fontSize: 12, color: "var(--muted)", fontFamily: "system-ui, sans-serif" },
+  fieldLabel: { fontSize: 12, color: "var(--muted)", fontFamily: "'Inter', system-ui, sans-serif" },
   input: {
     background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px",
-    color: "#EDE6D6", fontSize: 14, fontFamily: "system-ui, sans-serif", outline: "none",
+    color: "#EDE6D6", fontSize: 14, fontFamily: "'Inter', system-ui, sans-serif", outline: "none",
   },
-  error: { color: "#E08A8A", fontSize: 12.5, fontFamily: "system-ui, sans-serif" },
+  error: { color: "#E08A8A", fontSize: 12.5, fontFamily: "'Inter', system-ui, sans-serif" },
   primaryBtn: {
-    display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent)", color: "#101820",
-    border: "none", borderRadius: 8, padding: "11px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer",
-    fontFamily: "system-ui, sans-serif", marginTop: 4,
+    display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent)", color: "#171208",
+    border: "none", borderRadius: 9, padding: "12px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+    fontFamily: "'Inter', system-ui, sans-serif", marginTop: 4,
+    boxShadow: "0 1px 2px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.06) inset",
   },
   secondaryBtn: {
-    background: "transparent", color: "var(--muted)", border: "1px solid var(--border)", borderRadius: 8,
-    padding: "8px 14px", fontSize: 13, cursor: "pointer", fontFamily: "system-ui, sans-serif",
+    background: "var(--surface)", color: "var(--muted)", border: "1px solid var(--border)", borderRadius: 9,
+    padding: "8px 14px", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', system-ui, sans-serif",
   },
   donorList: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 },
   donorItem: {
     display: "flex", justifyContent: "space-between", alignItems: "center",
-    borderBottom: "1px solid var(--border)", paddingBottom: 10, fontFamily: "system-ui, sans-serif",
+    borderBottom: "1px solid var(--border)", paddingBottom: 10, fontFamily: "'Inter', system-ui, sans-serif",
   },
   donorName: { fontSize: 13.5, fontWeight: 600 },
   donorDept: { fontSize: 11.5, color: "var(--muted)", marginTop: 2 },
-  donorAmount: { fontSize: 13.5, fontWeight: 700, color: "var(--accent)" },
+  donorAmount: { fontSize: 15, fontWeight: 600, color: "var(--accent)", fontFamily: "'Fraunces', Georgia, serif" },
   closedNotice: {
     background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: 14,
-    fontSize: 13, color: "var(--muted)", fontFamily: "system-ui, sans-serif",
+    fontSize: 13, color: "var(--muted)", fontFamily: "'Inter', system-ui, sans-serif",
   },
   scheduleBox: {
     display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)",
@@ -1679,16 +1734,16 @@ const styles = {
   adminRowRight: { display: "flex", alignItems: "center", gap: 12 },
   adminDonationRow: {
     display: "flex", justifyContent: "space-between", alignItems: "center",
-    borderBottom: "1px solid var(--border)", paddingBottom: 12, fontFamily: "system-ui, sans-serif",
+    borderBottom: "1px solid var(--border)", paddingBottom: 12, fontFamily: "'Inter', system-ui, sans-serif",
   },
   empty: {
-    color: "#5C6675", fontSize: 13.5, fontFamily: "system-ui, sans-serif", padding: "24px 0", textAlign: "center",
+    color: "#5C6675", fontSize: 13.5, fontFamily: "'Inter', system-ui, sans-serif", padding: "24px 0", textAlign: "center",
   },
   narrow: { maxWidth: 520 },
   adminLogin: { maxWidth: 380, marginBottom: 30 },
   toast: {
     position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: "var(--surface)",
-    color: "var(--text)", padding: "10px 18px", borderRadius: 8, fontSize: 13, fontFamily: "system-ui, sans-serif",
+    color: "var(--text)", padding: "10px 18px", borderRadius: 8, fontSize: 13, fontFamily: "'Inter', system-ui, sans-serif",
     border: "1px solid var(--border)", zIndex: 50,
   },
 };
