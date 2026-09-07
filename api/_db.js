@@ -4,7 +4,7 @@
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+export const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 export const genId = () => crypto.randomBytes(6).toString("hex");
 
