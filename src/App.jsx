@@ -3,6 +3,12 @@ import { QrCode, Plus, ArrowLeft, Shield, Wallet } from "lucide-react";
 
 const ACCOUNT_TYPES = ["JazzCash", "Easypaisa", "HBL", "Bank Transfer"];
 
+const STATUS_META = {
+  unverified: { label: "Unverified", color: "#D9AF3E", soft: "rgba(217,175,62,0.18)" },
+  verified: { label: "Verified", color: "#32B968", soft: "rgba(50,185,104,0.18)" },
+  failed: { label: "Failed", color: "#E0645F", soft: "rgba(224,101,95,0.18)" },
+};
+
 const THEMES = [
   { id: "general", label: "General Event", emoji: "📌", color: "#D9AF3E", soft: "rgba(217,175,62,0.18)", pageBg: "#252014", surface: "#342C1C" },
   { id: "independence", label: "Independence Day", emoji: "🇵🇰", color: "#32B968", soft: "rgba(50,185,104,0.2)", pageBg: "#0F2A1D", surface: "#173B2A" },
@@ -250,9 +256,28 @@ export default function CampusFund() {
       const created = await res.json();
       setDonations((prev) => [created, ...prev]);
       flash("Contribution logged");
+      return created;
     } catch (e) {
       flash("Could not log that — check your connection and try again");
       throw e;
+    }
+  };
+
+  const verifyDonation = async (donationId, status) => {
+    // Optimistic update so the status change feels instant in the admin list.
+    setDonations((prev) => prev.map((d) => (d.id === donationId ? { ...d, status } : d)));
+    try {
+      const res = await fetch(`${API}/donations/${donationId}`, {
+        method: "PATCH",
+        headers: adminHeaders,
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const updated = await res.json();
+      setDonations((prev) => prev.map((d) => (d.id === donationId ? updated : d)));
+    } catch (e) {
+      flash("Could not update that donation — reloading");
+      load();
     }
   };
 
@@ -464,6 +489,7 @@ export default function CampusFund() {
             onToggleClose={() => closeCampaign(activeCampaign.id)}
             onDelete={() => deleteCampaign(activeCampaign.id)}
             onUpdateCampaign={(patch) => updateCampaign(activeCampaign.id, patch)}
+            onVerify={verifyDonation}
             flash={flash}
           />
         )}
@@ -673,7 +699,7 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
     setError("");
     setSubmitting(true);
     try {
-      await onSubmit({
+      const created = await onSubmit({
         campaignId: campaign.id,
         donorName: form.name.trim(),
         accountName: form.accountName.trim(),
@@ -685,11 +711,13 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
       });
       markPaidDonation(campaign.id, form);
       addToMyHistory({
+        id: created.id,
         campaignId: campaign.id,
         campaignTitle: campaign.title,
         amount: Number(form.amount),
         date: Date.now(),
         paidVia: payVia,
+        status: created.status || "unverified",
       });
       setForm((prev) => ({ ...prev, amount: "", ref: "" }));
       setScreenshot(null);
@@ -1107,7 +1135,7 @@ function NewCampaignForm({ onCancel, onCreate }) {
   );
 }
 
-function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onUpdateCampaign, flash }) {
+function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onUpdateCampaign, onVerify, flash }) {
   const total = donations.reduce((s, d) => s + Number(d.amount), 0);
   const images = campaign.images || [];
   const [lightbox, setLightbox] = useState(null);
@@ -1277,24 +1305,53 @@ function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onU
         <EmptyState text="No donations match that filter." small />
       ) : (
         <ul style={styles.donorList}>
-          {filteredDonations.map((d) => (
-            <li key={d.id} style={styles.adminDonationRow}>
-              <div>
-                <div style={styles.donorName}>{d.donorName}</div>
-                <div style={styles.donorDept}>
-                  {d.programme}{d.paidVia ? ` · via ${d.paidVia}` : ""}
-                  {d.accountName && d.accountName !== d.donorName ? ` · Sent from: ${d.accountName}` : ""}
-                  {d.ref ? ` · Ref: ${d.ref}` : ""}
+          {filteredDonations.map((d) => {
+            const status = STATUS_META[d.status] || STATUS_META.unverified;
+            const checkAccount = (campaign.accounts || {})[d.paidVia];
+            return (
+              <li key={d.id} style={{ ...styles.adminDonationRow, alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={styles.donorName}>{d.donorName}</div>
+                    <span style={{ ...styles.themeBadge, background: status.soft, color: status.color, padding: "2px 8px" }}>
+                      {status.label}
+                    </span>
+                  </div>
+                  <div style={styles.donorDept}>
+                    {d.programme}{d.paidVia ? ` · via ${d.paidVia}` : ""}
+                    {d.accountName && d.accountName !== d.donorName ? ` · Sent from: ${d.accountName}` : ""}
+                    {d.ref ? ` · Ref: ${d.ref}` : ""}
+                  </div>
+                  {checkAccount && (
+                    <div style={styles.hint}>Check against: {d.paidVia} {checkAccount.number} ({checkAccount.title})</div>
+                  )}
+                  {d.screenshot && (
+                    <button type="button" onClick={() => setLightbox(d.screenshot)} style={{ ...styles.copyBtn, marginTop: 6, marginLeft: 0 }}>
+                      View screenshot
+                    </button>
+                  )}
+                  <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                    {d.status !== "verified" && (
+                      <button type="button" onClick={() => onVerify(d.id, "verified")} style={{ ...styles.secondaryBtn, borderColor: STATUS_META.verified.color, color: STATUS_META.verified.color }}>
+                        Verify
+                      </button>
+                    )}
+                    {d.status !== "failed" && (
+                      <button type="button" onClick={() => onVerify(d.id, "failed")} style={{ ...styles.secondaryBtn, borderColor: STATUS_META.failed.color, color: STATUS_META.failed.color }}>
+                        Mark failed
+                      </button>
+                    )}
+                    {d.status && d.status !== "unverified" && (
+                      <button type="button" onClick={() => onVerify(d.id, "unverified")} style={styles.secondaryBtn}>
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {d.screenshot && (
-                  <button type="button" onClick={() => setLightbox(d.screenshot)} style={{ ...styles.copyBtn, marginTop: 6, marginLeft: 0 }}>
-                    View screenshot
-                  </button>
-                )}
-              </div>
-              <div style={styles.donorAmount}>{currency(d.amount)}</div>
-            </li>
-          ))}
+                <div style={styles.donorAmount}>{currency(d.amount)}</div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -1302,7 +1359,29 @@ function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onU
 }
 
 function MyHistory({ onBack }) {
-  const history = loadMyHistory();
+  const [history, setHistory] = useState(loadMyHistory());
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  useEffect(() => {
+    // Statuses can change after the donor leaves (admin verifies later), so
+    // refresh against the server's current record for each logged donation.
+    const stored = loadMyHistory();
+    if (stored.length === 0) {
+      setLoadingStatus(false);
+      return;
+    }
+    fetch(`${API}/donations`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((all) => {
+        const byId = Object.fromEntries(all.map((d) => [d.id, d.status || "unverified"]));
+        const refreshed = stored.map((h) => (h.id && byId[h.id] ? { ...h, status: byId[h.id] } : h));
+        setHistory(refreshed);
+        try { localStorage.setItem(MY_HISTORY_KEY, JSON.stringify(refreshed)); } catch (e) { /* best effort */ }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingStatus(false));
+  }, []);
+
   return (
     <div style={styles.narrow}>
       <button onClick={onBack} style={styles.backBtn}><ArrowLeft size={16} style={{ marginRight: 6 }} />All events</button>
@@ -1312,18 +1391,26 @@ function MyHistory({ onBack }) {
         <EmptyState text="You haven't logged any contributions on this device yet." />
       ) : (
         <ul style={styles.donorList}>
-          {history.map((h, i) => (
-            <li key={i} style={styles.adminDonationRow}>
-              <div>
-                <div style={styles.donorName}>{h.campaignTitle}</div>
-                <div style={styles.donorDept}>
-                  {new Date(h.date).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
-                  {h.paidVia ? ` · via ${h.paidVia}` : ""}
+          {history.map((h, i) => {
+            const status = STATUS_META[h.status] || STATUS_META.unverified;
+            return (
+              <li key={i} style={styles.adminDonationRow}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={styles.donorName}>{h.campaignTitle}</div>
+                    <span style={{ ...styles.themeBadge, background: status.soft, color: status.color, padding: "2px 8px" }}>
+                      {loadingStatus ? "Checking…" : status.label}
+                    </span>
+                  </div>
+                  <div style={styles.donorDept}>
+                    {new Date(h.date).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
+                    {h.paidVia ? ` · via ${h.paidVia}` : ""}
+                  </div>
                 </div>
-              </div>
-              <div style={styles.donorAmount}>{currency(h.amount)}</div>
-            </li>
-          ))}
+                <div style={styles.donorAmount}>{currency(h.amount)}</div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

@@ -16,7 +16,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing required fields" });
     }
     const db = await readDB();
-    const donation = { ...req.body, id: genId(), createdAt: Date.now() };
+    const donation = { ...req.body, id: genId(), status: "unverified", createdAt: Date.now() };
     db.donations.unshift(donation);
     await writeDB(db);
     return res.status(201).json(donation);
