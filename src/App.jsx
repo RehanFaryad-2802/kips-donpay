@@ -10,14 +10,14 @@ const STATUS_META = {
 };
 
 const THEMES = [
-  { id: "general", label: "General Event", emoji: "📌", color: "#D9AF3E", soft: "rgba(217,175,62,0.18)", pageBg: "#252014", surface: "#342C1C" },
-  { id: "independence", label: "Independence Day", emoji: "🇵🇰", color: "#32B968", soft: "rgba(50,185,104,0.2)", pageBg: "#0F2A1D", surface: "#173B2A" },
-  { id: "milad", label: "Milad-un-Nabi", emoji: "🌙", color: "#E2B83F", soft: "rgba(226,184,63,0.2)", pageBg: "#2B2412", surface: "#3B311A" },
-  { id: "convocation", label: "Convocation", emoji: "🎓", color: "#6689D6", soft: "rgba(102,137,214,0.2)", pageBg: "#172039", surface: "#233354" },
-  { id: "sports", label: "Sports Gala", emoji: "🏆", color: "#F0783E", soft: "rgba(240,120,62,0.2)", pageBg: "#2A1810", surface: "#3C2417" },
-  { id: "cultural", label: "Cultural Mela", emoji: "🎨", color: "#D166B9", soft: "rgba(209,102,185,0.2)", pageBg: "#2C1829", surface: "#42233B" },
-  { id: "charity", label: "Charity Drive", emoji: "🤝", color: "#35C2B7", soft: "rgba(53,194,183,0.2)", pageBg: "#102B2A", surface: "#19403E" },
-  { id: "farewell", label: "Farewell", emoji: "🎊", color: "#A477D9", soft: "rgba(164,119,217,0.2)", pageBg: "#241832", surface: "#35234B" },
+  { id: "general", label: "General Event", emoji: "📌", color: "#FF9142", soft: "rgba(255,145,66,0.16)", grad: "linear-gradient(135deg, #FF9142 0%, #E5484D 100%)" },
+  { id: "independence", label: "Independence Day", emoji: "🇵🇰", color: "#1DBE6F", soft: "rgba(29,190,111,0.16)", grad: "linear-gradient(135deg, #1DBE6F 0%, #0E7C66 100%)" },
+  { id: "milad", label: "Milad-un-Nabi", emoji: "🌙", color: "#E9B949", soft: "rgba(233,185,73,0.16)", grad: "linear-gradient(135deg, #2E8B57 0%, #E9B949 100%)" },
+  { id: "convocation", label: "Convocation", emoji: "🎓", color: "#5B7CFA", soft: "rgba(91,124,250,0.16)", grad: "linear-gradient(135deg, #5B7CFA 0%, #17BEBB 100%)" },
+  { id: "sports", label: "Sports Gala", emoji: "🏆", color: "#FF5A36", soft: "rgba(255,90,54,0.16)", grad: "linear-gradient(135deg, #FF5A36 0%, #FFC93C 100%)" },
+  { id: "cultural", label: "Cultural Mela", emoji: "🎨", color: "#E84393", soft: "rgba(232,67,147,0.16)", grad: "linear-gradient(135deg, #A62E9C 0%, #E84393 100%)" },
+  { id: "charity", label: "Charity Drive", emoji: "🤝", color: "#17BEBB", soft: "rgba(23,190,187,0.16)", grad: "linear-gradient(135deg, #17BEBB 0%, #2E8B92 100%)" },
+  { id: "farewell", label: "Farewell", emoji: "🎊", color: "#9B5DE5", soft: "rgba(155,93,229,0.16)", grad: "linear-gradient(135deg, #9B5DE5 0%, #E84393 100%)" },
 ];
 
 const getTheme = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
@@ -72,19 +72,7 @@ const formatSchedule = (eventDate) => {
   return `${fmtDate(eventDate)} · ${fmtTime(eventDate)}`;
 };
 
-const closestCampaignTheme = (campaigns) => {
-  if (!campaigns.length) return THEMES[0];
-  const target = Date.now();
-  const openCampaigns = campaigns.filter((campaign) => !campaign.closed);
-  const candidates = openCampaigns.length ? openCampaigns : campaigns;
-  return candidates.reduce((closest, campaign) => {
-    if (!campaign.eventDate) return closest;
-    const distance = Math.abs(new Date(campaign.eventDate).getTime() - target);
-    return !closest || distance < closest.distance
-      ? { theme: getTheme(campaign.theme), distance }
-      : closest;
-  }, null)?.theme || THEMES[0];
-};
+const BRAND_ACCENT = { color: "#E9B949", soft: "rgba(233,185,73,0.16)" };
 
 const MAX_EVENT_IMAGES = 8;
 const DONOR_PROFILE_KEY = "campus-fund-donor-profile";
@@ -365,15 +353,15 @@ export default function CampusFund() {
   }
 
   const activeCampaign = campaigns.find((c) => c.id === selected);
-  const pageTheme = activeCampaign ? getTheme(activeCampaign.theme) : closestCampaignTheme(campaigns);
+  const pageAccent = activeCampaign ? getTheme(activeCampaign.theme) : BRAND_ACCENT;
   const pageThemeStyles = {
-    "--accent": pageTheme.color,
-    "--accent-soft": pageTheme.soft,
-    "--page-bg": pageTheme.pageBg,
-    "--surface": pageTheme.surface,
-    "--border": `${pageTheme.color}88`,
-    "--text": "#F3F6F4",
-    "--muted": "#B5C0BD",
+    "--accent": pageAccent.color,
+    "--accent-soft": pageAccent.soft,
+    "--page-bg": "#0B0D11",
+    "--surface": "#15181F",
+    "--border": "rgba(255,255,255,0.09)",
+    "--text": "#F4F5F7",
+    "--muted": "#98A0AC",
   };
 
   return (
@@ -545,26 +533,21 @@ function CampaignCard({ c, raised, onOpen, dim }) {
   const theme = getTheme(c.theme);
   return (
     <button onClick={onOpen} style={{ ...styles.card, ...(dim ? { opacity: 0.55 } : {}) }} className="cf-ticket-card">
-      <div style={styles.cardTop}>
-        {cover ? (
-          <img src={cover} alt="" style={styles.cardCover} />
-        ) : (
-          <div style={{ ...styles.cardCoverBlank, background: theme.soft }}>{theme.emoji}</div>
-        )}
-        <div className="cf-stamp" style={{ ...styles.cardStamp, color: theme.color, background: "var(--surface)" }}>
-          {theme.emoji}
-        </div>
+      <div className="cf-grad-band" style={{ ...styles.cardBand, background: theme.grad }}>
+        {cover && <img src={cover} alt="" style={styles.cardCoverImg} />}
+        <span className="cf-grad-icon" style={styles.cardBandIcon}>{theme.emoji}</span>
       </div>
-      <div className="cf-ticket-perf" />
-      <div style={styles.cardTitle}>{c.title}</div>
-      <div style={styles.cardDesc}>{c.description}</div>
-      {(schedule || c.venue) && (
-        <div style={{ ...styles.cardSchedule, color: theme.color, marginBottom: 0 }}>
-          {schedule}
-          {schedule && c.venue ? " · " : ""}
-          {c.venue}
-        </div>
-      )}
+      <div style={styles.cardBody}>
+        <div style={styles.cardTitle}>{c.title}</div>
+        <div style={styles.cardDesc}>{c.description}</div>
+        {(schedule || c.venue) && (
+          <div style={{ ...styles.cardSchedule, color: theme.color, marginBottom: 0 }}>
+            {schedule}
+            {schedule && c.venue ? " · " : ""}
+            {c.venue}
+          </div>
+        )}
+      </div>
       {c.closed && <div style={styles.closedTag}>Closed</div>}
     </button>
   );
@@ -746,9 +729,9 @@ function DonorDetail({ campaign, onBack, onSubmit }) {
       <ThemeIntroEffect theme={theme} title={campaign.title} campaignId={campaign.id} />
       <button onClick={onBack} style={styles.backBtn}><ArrowLeft size={16} style={{ marginRight: 6 }} />All events</button>
 
-      <div style={styles.detailHeaderRow}>
-        <div className="cf-stamp" style={{ color: theme.color, background: "var(--surface)" }}>{theme.emoji}</div>
-        <h1 style={{ ...styles.h1, margin: 0 }} className="cf-h1">{campaign.title}</h1>
+      <div className="cf-hero-band" style={{ background: theme.grad }}>
+        <span style={styles.heroIcon}>{theme.emoji}</span>
+        <h1 style={styles.heroTitle} className="cf-h1">{campaign.title}</h1>
       </div>
       {(schedule || campaign.venue) && (
         <div style={{ ...styles.detailSchedule, color: theme.color }}>
@@ -1095,13 +1078,13 @@ function NewCampaignForm({ onCancel, onCreate }) {
                 onClick={() => pickTheme(t.id)}
                 style={{
                   ...styles.themeSwatch,
-                  background: t.soft,
+                  background: active ? t.grad : t.soft,
                   borderColor: active ? t.color : "var(--border)",
                   boxShadow: active ? `0 0 0 1px ${t.color}` : "none",
                 }}
               >
                 <span style={{ fontSize: 18 }}>{t.emoji}</span>
-                <span style={{ color: active ? t.color : "#C7CDD6", fontWeight: active ? 700 : 500 }}>{t.label}</span>
+                <span style={{ color: active ? "#fff" : "#C7CDD6", fontWeight: active ? 700 : 500 }}>{t.label}</span>
               </button>
             );
           })}
@@ -1242,13 +1225,13 @@ function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onU
                   onClick={() => setThemeDraft(t.id)}
                   style={{
                     ...styles.themeSwatch,
-                    background: t.soft,
+                    background: active ? t.grad : t.soft,
                     borderColor: active ? t.color : "var(--border)",
                     boxShadow: active ? `0 0 0 1px ${t.color}` : "none",
                   }}
                 >
                   <span style={{ fontSize: 18 }}>{t.emoji}</span>
-                  <span style={{ color: active ? t.color : "#C7CDD6", fontWeight: active ? 700 : 500 }}>{t.label}</span>
+                  <span style={{ color: active ? "#fff" : "#C7CDD6", fontWeight: active ? 700 : 500 }}>{t.label}</span>
                 </button>
               );
             })}
@@ -1267,7 +1250,7 @@ function AdminDetail({ campaign, donations, onBack, onToggleClose, onDelete, onU
       ) : (
         <div style={{ ...styles.scheduleBox, alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div className="cf-stamp" style={{ color: theme.color, background: "var(--page-bg)", flexShrink: 0 }}>{theme.emoji}</div>
+            <div style={{ ...styles.themeChip, background: theme.grad }}>{theme.emoji}</div>
             <div>
               <div style={{ ...styles.donorName, marginBottom: 2 }}>{theme.label}</div>
               {schedule && <div style={styles.donorDept}>{schedule}</div>}
@@ -1444,7 +1427,7 @@ function EmptyState({ text, small }) {
 }
 
 const fontFace = `
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,440;9..144,560;9..144,650&family=Inter:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
   html, body, #root { min-height: 100%; background: var(--page-bg, #101820); }
   html, body { overflow-x: hidden; margin: 0; }
@@ -1462,36 +1445,23 @@ const fontFace = `
   .cf-admin-row-right { flex-wrap: wrap; }
   .cf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
 
-  /* Ticket-stub motif: a torn-perforation divider between an event card's
-     visual band and its details, echoing a real event/donation stub. */
+  /* Each event's card carries its own gradient identity, independent of
+     whatever page it's viewed on — this is what makes themes read as
+     genuinely different from each other, not just a recolored badge. */
   .cf-ticket-card {
-    transition: transform 0.18s ease, border-color 0.18s ease;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
-  .cf-ticket-card:hover { transform: translateY(-3px); }
-  .cf-ticket-perf {
-    position: relative; height: 0; margin: 14px -18px 14px;
-    border-top: 1.5px dashed var(--border);
+  .cf-ticket-card:hover { transform: translateY(-4px); box-shadow: 0 14px 28px rgba(0,0,0,0.35); }
+  .cf-grad-band {
+    position: relative; display: flex; align-items: flex-end; overflow: hidden;
   }
-  .cf-ticket-perf::before, .cf-ticket-perf::after {
-    content: ""; position: absolute; top: -7px; width: 14px; height: 14px;
-    border-radius: 50%; background: var(--page-bg);
+  .cf-grad-icon {
+    font-size: 30px; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
   }
-  .cf-ticket-perf::before { left: -7px; }
-  .cf-ticket-perf::after { right: -7px; }
-
-  /* Wax-seal stamp: stands in for the theme's identity mark, in place of a
-     flat SaaS-style color pill. */
-  .cf-stamp {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
-    border: 1.5px dashed currentColor; transform: rotate(-8deg);
-    font-size: 18px; position: relative;
+  .cf-hero-band {
+    position: relative; border-radius: 16px; overflow: hidden; padding: 28px 24px;
+    display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
   }
-  .cf-stamp::after {
-    content: ""; position: absolute; inset: 4px; border-radius: 50%;
-    border: 1px solid currentColor; opacity: 0.45;
-  }
-  .cf-stamp-lg { width: 56px; height: 56px; font-size: 24px; }
 
   .cf-theme-intro { animation: cf-intro-fade 2.2s ease forwards; }
   .cf-intro-motif { animation: cf-intro-float 1.8s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--intro-index) * 70ms); }
@@ -1584,7 +1554,7 @@ const styles = {
   },
   brand: { display: "flex", alignItems: "center", gap: 12 },
   brandMark: { flexShrink: 0 },
-  brandTitle: { fontSize: 19, fontWeight: 600, letterSpacing: 0.2, color: "var(--text)", fontFamily: "'Fraunces', Georgia, serif" },
+  brandTitle: { fontSize: 19, fontWeight: 600, letterSpacing: 0.2, color: "var(--text)", fontFamily: "'Manrope', system-ui, sans-serif" },
   brandSub: { fontSize: 11.5, color: "var(--muted)", fontFamily: "'Inter', system-ui, sans-serif", marginTop: 1 },
   roleSwitch: { display: "flex", gap: 4, background: "var(--surface)", padding: 4, borderRadius: 10 },
   roleBtn: {
@@ -1594,30 +1564,36 @@ const styles = {
   },
   roleBtnActive: { background: "var(--accent-soft)", color: "var(--accent)" },
   main: { maxWidth: 920, margin: "0 auto", padding: "36px 28px 0" },
-  h1: { fontSize: 27, fontWeight: 600, margin: "0 0 8px", letterSpacing: 0.1, fontFamily: "'Fraunces', Georgia, serif" },
-  detailHeaderRow: { display: "flex", alignItems: "center", gap: 14, marginBottom: 8 },
+  h1: { fontSize: 27, fontWeight: 700, margin: "0 0 8px", letterSpacing: 0.1, fontFamily: "'Manrope', system-ui, sans-serif" },
+  themeChip: {
+    width: 44, height: 44, borderRadius: 12, flexShrink: 0, fontSize: 20,
+    display: "flex", alignItems: "center", justifyContent: "center",
+  },
+  heroIcon: { fontSize: 40, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.3))" },
+  heroTitle: {
+    fontSize: 24, fontWeight: 700, margin: 0, color: "#fff",
+    fontFamily: "'Manrope', system-ui, sans-serif", textShadow: "0 1px 8px rgba(0,0,0,0.25)",
+  },
   lead: { fontSize: 14.5, color: "var(--muted)", fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1.6, margin: "0 0 24px", maxWidth: 560 },
   detailSchedule: { fontSize: 12.5, color: "var(--accent)", fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8, fontWeight: 600 },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 },
   card: {
-    textAlign: "left", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14,
-    padding: "16px 18px 18px", cursor: "pointer", color: "var(--text)", position: "relative",
-    fontFamily: "inherit", boxShadow: "0 1px 0 rgba(0,0,0,0.15)",
+    textAlign: "left", background: "var(--surface)", border: "none", borderRadius: 16,
+    padding: 0, cursor: "pointer", color: "var(--text)", position: "relative", overflow: "hidden",
+    fontFamily: "inherit", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
   },
-  cardTop: { position: "relative", marginBottom: 2 },
-  cardCover: { width: "100%", height: 112, objectFit: "cover", borderRadius: 9, display: "block", background: "var(--page-bg)" },
-  cardCoverBlank: {
-    width: "100%", height: 112, borderRadius: 9, display: "flex", alignItems: "center",
-    justifyContent: "center", fontSize: 40, opacity: 0.4,
-  },
-  cardStamp: { position: "absolute", top: -12, right: 10, boxShadow: "0 3px 8px rgba(0,0,0,0.35)" },
-  cardTitle: { fontSize: 17, fontWeight: 600, marginBottom: 6, fontFamily: "'Fraunces', Georgia, serif" },
+  cardBand: { height: 130, padding: "12px 14px" },
+  cardCoverImg: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.42 },
+  cardBandIcon: { position: "relative", fontSize: 30 },
+  cardBody: { padding: "16px 18px 18px" },
+  cardTitle: { fontSize: 17, fontWeight: 700, marginBottom: 6, fontFamily: "'Manrope', system-ui, sans-serif" },
   cardDesc: { fontSize: 12.5, color: "var(--muted)", fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1.5, marginBottom: 14, minHeight: 32 },
   cardSchedule: { fontSize: 11.5, color: "var(--accent)", fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8 },
   cardMeta: { fontSize: 12.5, fontFamily: "'Inter', system-ui, sans-serif", color: "var(--accent)", fontWeight: 600 },
   closedTag: {
-    position: "absolute", top: 14, right: 14, fontSize: 10.5, color: "var(--muted)",
-    border: "1px solid var(--border)", borderRadius: 5, padding: "2px 7px", fontFamily: "'Inter', system-ui, sans-serif",
+    position: "absolute", top: 12, right: 12, fontSize: 10.5, color: "#F4F5F7",
+    background: "rgba(10,12,16,0.65)", borderRadius: 6, padding: "3px 8px", fontFamily: "'Inter', system-ui, sans-serif",
+    backdropFilter: "blur(4px)",
   },
   sectionDivider: {
     fontSize: 11.5, textTransform: "uppercase", letterSpacing: 1, color: "var(--muted)",
@@ -1687,7 +1663,7 @@ const styles = {
   },
   introTitle: {
     position: "relative", color: "var(--intro-color)", fontSize: 24, fontWeight: 600,
-    textShadow: "0 2px 18px rgba(0,0,0,.8)", textAlign: "center", fontFamily: "'Fraunces', Georgia, serif",
+    textShadow: "0 2px 18px rgba(0,0,0,.8)", textAlign: "center", fontFamily: "'Manrope', system-ui, sans-serif",
   },
   form: { display: "flex", flexDirection: "column", gap: 14 },
   formRow2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 },
@@ -1715,7 +1691,7 @@ const styles = {
   },
   donorName: { fontSize: 13.5, fontWeight: 600 },
   donorDept: { fontSize: 11.5, color: "var(--muted)", marginTop: 2 },
-  donorAmount: { fontSize: 15, fontWeight: 600, color: "var(--accent)", fontFamily: "'Fraunces', Georgia, serif" },
+  donorAmount: { fontSize: 15, fontWeight: 600, color: "var(--accent)", fontFamily: "'Manrope', system-ui, sans-serif" },
   closedNotice: {
     background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: 14,
     fontSize: 13, color: "var(--muted)", fontFamily: "'Inter', system-ui, sans-serif",
